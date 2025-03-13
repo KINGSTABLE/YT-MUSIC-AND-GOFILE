@@ -31,7 +31,7 @@ def home():
 
 bot = Bot(token=BOT_TOKEN)
 
-# **Method 1: Load Cookies from Koyeb Environment Variable**
+# **Load Cookies from Environment Variable**
 cookies_data = os.getenv("COOKIES_DATA", "")
 if cookies_data:
     with open(COOKIES_FILE_PATH, "w") as file:
@@ -72,12 +72,16 @@ def download_music(url, save_path):
             'preferredcodec': 'mp3',
             'preferredquality': '192',
         }],
-        'cookiefile': 'cookies.txt'  # Add this line
+        'cookiefile': COOKIES_FILE_PATH  # Use the cookies file
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        return os.path.join(save_path, f"{info['title']}.mp3")
+        try:
+            info = ydl.extract_info(url, download=True)
+            return os.path.join(save_path, f"{info['title']}.mp3")
+        except yt_dlp.utils.DownloadError as e:
+            print(f"Download failed: {e}")
+            return None
 
 def upload_to_gofile(file_path):
     url = "https://api.gofile.io/uploadFile"
@@ -105,10 +109,13 @@ async def handle_message(update: Update, context):
     await update.message.reply_text("⏳ Downloading music...")
     mp3_path = download_music(url, save_path)
     
-    await update.message.reply_text("⬆️ Uploading to GoFile...")
-    gofile_link = upload_to_gofile(mp3_path)
-    await update.message.reply_text(f"✅ Music uploaded: {gofile_link}")
-    os.remove(mp3_path)
+    if mp3_path:
+        await update.message.reply_text("⬆️ Uploading to GoFile...")
+        gofile_link = upload_to_gofile(mp3_path)
+        await update.message.reply_text(f"✅ Music uploaded: {gofile_link}")
+        os.remove(mp3_path)
+    else:
+        await update.message.reply_text("❌ Failed to download the music. Please try again later.")
 
 def run_flask():
     PORT = int(os.getenv("PORT", 5000))
