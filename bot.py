@@ -5,6 +5,11 @@ from flask import Flask, request
 from telegram import Update, Bot
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from threading import Thread
+import asyncio
+import nest_asyncio
+
+# Apply nest_asyncio to avoid event loop conflict
+nest_asyncio.apply()
 
 # Load environment variables
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -88,16 +93,17 @@ def run_flask():
     PORT = int(os.getenv("PORT", 5000))
     app.run(host="0.0.0.0", port=PORT)
 
-async def main():
-    app_thread = Thread(target=run_flask)
-    app_thread.start()
-    
+def run_bot():
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    await application.run_polling()
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(application.run_polling())
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    # Run Flask in a separate thread
+    Thread(target=run_flask).start()
+    
+    # Run Telegram bot
+    run_bot()
