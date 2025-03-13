@@ -61,16 +61,17 @@ async def start(update: Update, context):
     await update.message.reply_text("🎵 Send a YouTube link to download music in MP3 format!")
 
 def download_music(url, save_path):
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'outtmpl': os.path.join(save_path, '%(title)s.%(ext)s'),
-        'cookiefile': COOKIES_FILE_PATH,  # Use cookies for authentication
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '320',
-        }],
-    }
+ ydl_opts = {
+    'format': 'bestaudio/best',
+    'outtmpl': f'{save_path}/%(title)s.%(ext)s',
+    'postprocessors': [{
+        'key': 'FFmpegExtractAudio',
+        'preferredcodec': 'mp3',
+        'preferredquality': '192',
+    }],
+    'cookiefile': 'cookies.txt'  # Add this line
+}
+
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
         return os.path.join(save_path, f"{info['title']}.mp3")
