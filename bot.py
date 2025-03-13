@@ -1,6 +1,7 @@
 import os
 import yt_dlp
 import requests
+import json
 from flask import Flask, request
 from telegram import Update, Bot
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
@@ -16,6 +17,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 GOFILE_FOLDER_ID = "gvcT2t"
 GOFILE_ACCOUNT_TOKEN = os.getenv("GOFILE_ACCOUNT_TOKEN")
 CHANNEL_USERNAME = "@TOOLS_BOTS_KING"
+COOKIES_FILE_PATH = "cookies.txt"  # Path to save cookies
 
 # Initialize Flask
 app = Flask(__name__)
@@ -25,6 +27,20 @@ def home():
     return "YouTube to MP3 Bot is Running!"
 
 bot = Bot(token=BOT_TOKEN)
+
+# Function to download cookies from Google Drive
+def download_cookies():
+    GOOGLE_DRIVE_URL = "https://drive.google.com/uc?export=download&id=1wgXXNAWgNmCZEjeG0eRDOcTzIBfasVE_"
+    response = requests.get(GOOGLE_DRIVE_URL)
+    if response.status_code == 200:
+        with open(COOKIES_FILE_PATH, "wb") as file:
+            file.write(response.content)
+        print("✅ Cookies downloaded successfully!")
+    else:
+        print("❌ Failed to download cookies.")
+
+# Load cookies at the start
+download_cookies()
 
 # Subscription check
 async def is_user_subscribed(user_id):
@@ -53,6 +69,7 @@ def download_music(url, save_path):
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': os.path.join(save_path, '%(title)s.%(ext)s'),
+        'cookies': COOKIES_FILE_PATH,  # Use cookies for authentication
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
