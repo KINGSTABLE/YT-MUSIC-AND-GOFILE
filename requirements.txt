@@ -5,3 +5,4 @@ requests
 nest_asyncio
 python-dotenv
 browser-cookie3
+flask[async]
