@@ -8,11 +8,14 @@ from threading import Thread
 import asyncio
 import nest_asyncio
 import os
+from dotenv import load_dotenv
+import logging
 
 # Apply nest_asyncio to avoid event loop conflict
 nest_asyncio.apply()
 
 # Load environment variables
+load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 GOFILE_FOLDER_ID = "gvcT2t"
 GOFILE_ACCOUNT_TOKEN = os.getenv("GOFILE_ACCOUNT_TOKEN")
@@ -61,16 +64,16 @@ async def start(update: Update, context):
     await update.message.reply_text("🎵 Send a YouTube link to download music in MP3 format!")
 
 def download_music(url, save_path):
- ydl_opts = {
-    'format': 'bestaudio/best',
-    'outtmpl': f'{save_path}/%(title)s.%(ext)s',
-    'postprocessors': [{
-        'key': 'FFmpegExtractAudio',
-        'preferredcodec': 'mp3',
-        'preferredquality': '192',
-    }],
-    'cookiefile': 'cookies.txt'  # Add this line
-}
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': f'{save_path}/%(title)s.%(ext)s',
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }],
+        'cookiefile': 'cookies.txt'  # Add this line
+    }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
@@ -78,9 +81,14 @@ def download_music(url, save_path):
 
 def upload_to_gofile(file_path):
     url = "https://api.gofile.io/uploadFile"
-    with open(file_path, 'rb') as file:
-        response = requests.post(url, files={"file": file}, data={"token": GOFILE_ACCOUNT_TOKEN, "folderId": GOFILE_FOLDER_ID})
-    return response.json().get("data", {}).get("downloadPage", "Upload failed")
+    try:
+        with open(file_path, 'rb') as file:
+            response = requests.post(url, files={"file": file}, data={"token": GOFILE_ACCOUNT_TOKEN, "folderId": GOFILE_FOLDER_ID})
+        response.raise_for_status()
+        return response.json().get("data", {}).get("downloadPage", "Upload failed")
+    except Exception as e:
+        print(f"Upload failed: {e}")
+        return "Upload failed"
 
 async def handle_message(update: Update, context):
     user_id = update.message.chat_id
@@ -116,7 +124,8 @@ def run_bot():
 
 if __name__ == "__main__":
     # Run Flask in a separate thread
-    Thread(target=run_flask).start()
+    flask_thread = Thread(target=run_flask)
+    flask_thread.start()
     
     # Run Telegram bot
     run_bot()
