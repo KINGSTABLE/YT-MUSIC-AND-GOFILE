@@ -4,3 +4,4 @@ yt-dlp
 requests
 nest_asyncio
 python-dotenv
+browser-cookie3
