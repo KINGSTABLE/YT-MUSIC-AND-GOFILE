@@ -3,8 +3,8 @@ import yt_dlp
 import requests
 from flask import Flask, request
 from telegram import Update, Bot
-from telegram.ext import CommandHandler, CallbackContext, Updater
-from tqdm import tqdm
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from threading import Thread
 
 # Load environment variables
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -22,27 +22,27 @@ def home():
 bot = Bot(token=BOT_TOKEN)
 
 # Subscription check
-def is_user_subscribed(user_id):
+async def is_user_subscribed(user_id):
     try:
-        member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
+        member = await bot.get_chat_member(CHANNEL_USERNAME, user_id)
         return member.status in ["member", "administrator", "creator"]
     except Exception as e:
         print(f"Subscription check failed: {e}")
         return False
 
-def force_join(update: Update):
-    update.message.reply_text(
+async def force_join(update: Update):
+    await update.message.reply_text(
         f"🚨 Join our channel to use this bot! \n➡️ [Join Now](https://t.me/{CHANNEL_USERNAME[1:]})",
         parse_mode="Markdown",
         disable_web_page_preview=True
     )
 
-def start(update: Update, context: CallbackContext):
+async def start(update: Update, context):
     user_id = update.message.chat_id
-    if not is_user_subscribed(user_id):
-        force_join(update)
+    if not await is_user_subscribed(user_id):
+        await force_join(update)
         return
-    update.message.reply_text("🎵 Send a YouTube link to download music in MP3 format!")
+    await update.message.reply_text("🎵 Send a YouTube link to download music in MP3 format!")
 
 def download_music(url, save_path):
     ydl_opts = {
@@ -64,33 +64,40 @@ def upload_to_gofile(file_path):
         response = requests.post(url, files={"file": file}, data={"token": GOFILE_ACCOUNT_TOKEN, "folderId": GOFILE_FOLDER_ID})
     return response.json().get("data", {}).get("downloadPage", "Upload failed")
 
-def handle_message(update: Update, context: CallbackContext):
+async def handle_message(update: Update, context):
     user_id = update.message.chat_id
-    if not is_user_subscribed(user_id):
-        force_join(update)
+    if not await is_user_subscribed(user_id):
+        await force_join(update)
         return
     
     url = update.message.text.strip()
     if "youtube.com" not in url and "youtu.be" not in url:
-        update.message.reply_text("❌ Invalid YouTube URL!")
+        await update.message.reply_text("❌ Invalid YouTube URL!")
         return
     
     save_path = os.getcwd()
-    update.message.reply_text("⏳ Downloading music...")
+    await update.message.reply_text("⏳ Downloading music...")
     mp3_path = download_music(url, save_path)
     
-    update.message.reply_text("⬆️ Uploading to GoFile...")
+    await update.message.reply_text("⬆️ Uploading to GoFile...")
     gofile_link = upload_to_gofile(mp3_path)
-    update.message.reply_text(f"✅ Music uploaded: {gofile_link}")
+    await update.message.reply_text(f"✅ Music uploaded: {gofile_link}")
     os.remove(mp3_path)
 
-def main():
-    updater = Updater(BOT_TOKEN, use_context=True)
-    dp = updater.dispatcher
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("download", handle_message))
-    updater.start_polling()
-    app.run(host="0.0.0.0", port=5000)
+def run_flask():
+    PORT = int(os.getenv("PORT", 5000))
+    app.run(host="0.0.0.0", port=PORT)
+
+async def main():
+    app_thread = Thread(target=run_flask)
+    app_thread.start()
+    
+    application = Application.builder().token(BOT_TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    await application.run_polling()
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())
