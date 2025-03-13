@@ -3,3 +3,4 @@ python-telegram-bot==20.0
 yt-dlp
 requests
 nest_asyncio
+python-dotenv
