@@ -1,4 +1,3 @@
-import os
 import yt_dlp
 import requests
 import json
@@ -8,6 +7,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from threading import Thread
 import asyncio
 import nest_asyncio
+import os
 
 # Apply nest_asyncio to avoid event loop conflict
 nest_asyncio.apply()
@@ -28,19 +28,14 @@ def home():
 
 bot = Bot(token=BOT_TOKEN)
 
-# Function to download cookies from Google Drive
-def download_cookies():
-    GOOGLE_DRIVE_URL = "https://drive.google.com/uc?export=download&id=1wgXXNAWgNmCZEjeG0eRDOcTzIBfasVE_"
-    response = requests.get(GOOGLE_DRIVE_URL)
-    if response.status_code == 200:
-        with open(COOKIES_FILE_PATH, "wb") as file:
-            file.write(response.content)
-        print("✅ Cookies downloaded successfully!")
-    else:
-        print("❌ Failed to download cookies.")
-
-# Load cookies at the start
-download_cookies()
+# **Method 1: Load Cookies from Koyeb Environment Variable**
+cookies_data = os.getenv("COOKIES_DATA", "")
+if cookies_data:
+    with open(COOKIES_FILE_PATH, "w") as file:
+        file.write(cookies_data)
+    print("✅ Cookies file created successfully!")
+else:
+    print("⚠️ No cookies found in environment variables!")
 
 # Subscription check
 async def is_user_subscribed(user_id):
@@ -69,7 +64,7 @@ def download_music(url, save_path):
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': os.path.join(save_path, '%(title)s.%(ext)s'),
-        'cookies': COOKIES_FILE_PATH,  # Use cookies for authentication
+        'cookiefile': COOKIES_FILE_PATH,  # Use cookies for authentication
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
