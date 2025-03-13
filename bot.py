@@ -72,7 +72,7 @@ def download_music(url, save_path):
             'preferredcodec': 'mp3',
             'preferredquality': '320',
         }],
-        'cookiefile': 'cookies.txt'  # Ensure this path is correct
+        'cookiefile': COOKIES_FILE_PATH  # Use the cookies file
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
