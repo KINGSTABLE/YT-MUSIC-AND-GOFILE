@@ -159,7 +159,7 @@ def run_flask():
 
 def run_bot():
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(set_webhook())
+    loop.run_until_complete(application.initialize())  # Initialize the application
     loop.run_until_complete(application.start())
 
 if __name__ == "__main__":
