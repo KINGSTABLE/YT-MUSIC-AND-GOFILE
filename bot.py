@@ -3,7 +3,7 @@ import requests
 import json
 from flask import Flask, request
 from telegram import Update, Bot
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from threading import Thread
 import asyncio
 import nest_asyncio
@@ -20,7 +20,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 GOFILE_FOLDER_ID = "gvcT2t"
 GOFILE_ACCOUNT_TOKEN = os.getenv("GOFILE_ACCOUNT_TOKEN")
 CHANNEL_USERNAME = "@TOOLS_BOTS_KING"
-COOKIES_FILE_PATH = "cookies.txt"  # Path to save cookies
+COOKIES_JSON_PATH = "cookies.json"  # Path to save cookies in JSON format
 
 # Initialize Flask
 app = Flask(__name__)
@@ -32,13 +32,13 @@ def home():
 bot = Bot(token=BOT_TOKEN)
 
 # **Load Cookies from Environment Variable**
-cookies_data = os.getenv("COOKIES_DATA", "")
-if cookies_data:
-    with open(COOKIES_FILE_PATH, "w") as file:
-        file.write(cookies_data)
-    print("✅ Cookies file created successfully!")
+cookies_json_data = os.getenv("COOKIES_JSON_DATA", "")
+if cookies_json_data:
+    with open(COOKIES_JSON_PATH, "w") as file:
+        file.write(cookies_json_data)
+    print("✅ Cookies JSON file created successfully!")
 else:
-    print("⚠️ No cookies found in environment variables!")
+    print("⚠️ No cookies JSON data found in environment variables!")
 
 # Subscription check
 async def is_user_subscribed(user_id):
@@ -56,7 +56,7 @@ async def force_join(update: Update):
         disable_web_page_preview=True
     )
 
-async def start(update: Update, context):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.chat_id
     if not await is_user_subscribed(user_id):
         await force_join(update)
@@ -70,9 +70,9 @@ def download_music(url, save_path):
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
-            'preferredquality': '320',
+            'preferredquality': '192',
         }],
-        'cookiefile': 'cookies.txt'  # Ensure this path is correct
+        'cookiefile': COOKIES_JSON_PATH  # Use the JSON cookies file
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -94,7 +94,7 @@ def upload_to_gofile(file_path):
         print(f"Upload failed: {e}")
         return "Upload failed"
 
-async def handle_message(update: Update, context):
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.chat_id
     if not await is_user_subscribed(user_id):
         await force_join(update)
@@ -117,17 +117,30 @@ async def handle_message(update: Update, context):
     else:
         await update.message.reply_text("❌ Failed to download the music. Please try again later.")
 
+# Add handlers
+application = Application.builder().token(BOT_TOKEN).build()
+application.add_handler(CommandHandler("start", start))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+# Webhook setup
+@app.route('/webhook', methods=['POST'])
+async def webhook():
+    update = Update.de_json(await request.get_json(), application.bot)
+    await application.process_update(update)
+    return 'ok'
+
+# Start the bot with webhooks
+async def set_webhook():
+    await application.bot.set_webhook(url=f"{os.getenv('WEBHOOK_URL')}/webhook")
+
 def run_flask():
     PORT = int(os.getenv("PORT", 5000))
     app.run(host="0.0.0.0", port=PORT)
 
 def run_bot():
-    application = Application.builder().token(BOT_TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(application.run_polling())
+    loop.run_until_complete(set_webhook())
+    loop.run_until_complete(application.start())
 
 if __name__ == "__main__":
     # Run Flask in a separate thread
