@@ -2,7 +2,7 @@ import yt_dlp
 import requests
 import json
 from flask import Flask, request
-from telegram import Update, Bot, InputFile
+from telegram import Update, Bot
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from threading import Thread
 import asyncio
@@ -10,6 +10,7 @@ import nest_asyncio
 import os
 from dotenv import load_dotenv
 import logging
+from io import BytesIO
 
 # Apply nest_asyncio to avoid event loop conflict
 nest_asyncio.apply()
@@ -75,36 +76,39 @@ async def handle_cookies(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("❌ Please upload a valid `cookies.json` file.")
 
-def download_music(url, save_path, cookies_file):
+def download_and_upload_to_gofile(url, cookies_file):
     ydl_opts = {
         'format': 'bestaudio/best',  # Select the best available audio format
-        'outtmpl': f'{save_path}/%(title)s.%(ext)s',
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',  # Convert to MP3
             'preferredquality': '320',  # Highest quality for MP3
         }],
-        'cookiefile': cookies_file  # Use the user's cookies file
+        'cookiefile': cookies_file,
+        'outtmpl': '-',  # Output to stdout
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
-            info = ydl.extract_info(url, download=True)
-            return os.path.join(save_path, f"{info['title']}.mp3")
+            info = ydl.extract_info(url, download=False)
+            title = info.get('title', 'audio')
+            ext = 'mp3'
+            filename = f"{title}.{ext}"
+
+            with BytesIO() as audio_file:
+                ydl.download([url])
+                audio_file.seek(0)
+
+                response = requests.post(
+                    "https://api.gofile.io/uploadFile",
+                    files={"file": (filename, audio_file)},
+                    data={"token": GOFILE_ACCOUNT_TOKEN, "folderId": GOFILE_FOLDER_ID}
+                )
+                response.raise_for_status()
+                return response.json().get("data", {}).get("downloadPage", "Upload failed")
         except yt_dlp.utils.DownloadError as e:
             print(f"Download failed: {e}")
-            return None
-
-def upload_to_gofile(file_path):
-    url = "https://api.gofile.io/uploadFile"
-    try:
-        with open(file_path, 'rb') as file:
-            response = requests.post(url, files={"file": file}, data={"token": GOFILE_ACCOUNT_TOKEN, "folderId": GOFILE_FOLDER_ID})
-        response.raise_for_status()
-        return response.json().get("data", {}).get("downloadPage", "Upload failed")
-    except Exception as e:
-        print(f"Upload failed: {e}")
-        return "Upload failed"
+            return "Download failed"
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.chat_id
@@ -117,7 +121,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Invalid YouTube URL!")
         return
     
-    save_path = os.getcwd()
     cookies_file = f"cookies_{user_id}.json"
 
     # Check if the user has uploaded cookies
@@ -125,16 +128,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Please upload your `cookies.json` file first.")
         return
 
-    await update.message.reply_text("⏳ Downloading music...")
-    mp3_path = download_music(url, save_path, cookies_file)
+    await update.message.reply_text("⏳ Downloading and uploading music...")
+    gofile_link = download_and_upload_to_gofile(url, cookies_file)
     
-    if mp3_path:
-        await update.message.reply_text("⬆️ Uploading to GoFile...")
-        gofile_link = upload_to_gofile(mp3_path)
+    if "Upload failed" not in gofile_link:
         await update.message.reply_text(f"✅ Music uploaded: {gofile_link}")
-        os.remove(mp3_path)
     else:
-        await update.message.reply_text("❌ Failed to download the music. Please try again later.")
+        await update.message.reply_text("❌ Failed to download and upload the music. Please try again later.")
 
 # Add handlers
 application = Application.builder().token(BOT_TOKEN).build()
