@@ -10,6 +10,18 @@ CHANNEL_USERNAME = "@TOOLS_BOTS_KING"
 
 bot = telebot.TeleBot(API_TOKEN)
 
+# Load cookies from a file (you need to set up your cookies.txt file)
+def load_cookies():
+    cookies = {}
+    with open("cookies.txt", "r") as file:
+        for line in file:
+            if not line.startswith("#"):
+                parts = line.strip().split("\t")
+                if len(parts) == 7:
+                    domain, _, path, _, _, expiration, name, value = parts
+                    cookies[name] = value
+    return cookies
+
 def check_subscription(user_id):
     try:
         member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
@@ -18,7 +30,7 @@ def check_subscription(user_id):
         return False
 
 def download_youtube_video(url):
-    yt = YouTube(url)
+    yt = YouTube(url, cookies=load_cookies())
     stream = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc().first()
     file_path = stream.download()
     return file_path
@@ -58,10 +70,18 @@ def process_url(message):
     username = message.from_user.username
 
     bot.send_message(message.chat.id, "Downloading video, please wait...")
-    file_path = download_youtube_video(url)
+    try:
+        file_path = download_youtube_video(url)
+    except Exception as e:
+        bot.send_message(message.chat.id, f"Error downloading video: {e}")
+        return
 
     bot.send_message(message.chat.id, "Uploading video to Gofile, please wait...")
-    download_link = upload_to_gofile(file_path)
+    try:
+        download_link = upload_to_gofile(file_path)
+    except Exception as e:
+        bot.send_message(message.chat.id, f"Error uploading video: {e}")
+        return
 
     bot.send_message(message.chat.id, f"Here is your download link: {download_link}")
 
