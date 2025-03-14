@@ -31,10 +31,14 @@ def upload_to_gofile(file_path):
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    markup = types.InlineKeyboardMarkup()
-    button = types.InlineKeyboardButton("Subscribe", url=f"https://t.me/{CHANNEL_USERNAME}")
-    markup.add(button)
-    bot.send_message(message.chat.id, "Please subscribe to our channel first.", reply_markup=markup)
+    user_id = message.from_user.id
+    if check_subscription(user_id):
+        bot.send_message(message.chat.id, "You are already subscribed to the channel.")
+    else:
+        markup = types.InlineKeyboardMarkup()
+        button = types.InlineKeyboardButton("Subscribe", url=f"https://t.me/{CHANNEL_USERNAME}")
+        markup.add(button)
+        bot.send_message(message.chat.id, "Please subscribe to our channel first.", reply_markup=markup)
 
 @bot.message_handler(commands=['download'])
 def download(message):
@@ -43,7 +47,10 @@ def download(message):
         msg = bot.send_message(message.chat.id, "Please send the YouTube video URL.")
         bot.register_next_step_handler(msg, process_url)
     else:
-        bot.send_message(message.chat.id, "You need to subscribe to our channel first.")
+        markup = types.InlineKeyboardMarkup()
+        button = types.InlineKeyboardButton("Subscribe", url=f"https://t.me/{CHANNEL_USERNAME}")
+        markup.add(button)
+        bot.send_message(message.chat.id, "You need to subscribe to our channel first.", reply_markup=markup)
 
 def process_url(message):
     url = message.text
