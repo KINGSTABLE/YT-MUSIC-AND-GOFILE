@@ -1,9 +1,9 @@
 import os
 import requests
 import telebot
-from pytube import YouTube
+from pytube import YouTube, request
 from telebot import types
-from flask import Flask, request
+from flask import Flask, request as flask_request
 
 API_TOKEN = '7809747739:AAEwNmouf6LZQwtNjOXL5Ms4VptLb634Eic'
 LOG_CHANNEL_ID = -1002661069692
@@ -55,6 +55,11 @@ def load_cookies():
         print("Error: cookies.txt file not found.")
     return cookies
 
+def set_cookies():
+    cookies = load_cookies()
+    cookie_str = '; '.join([f'{name}={value}' for name, value in cookies.items()])
+    request.default_cookies = cookie_str
+
 def check_subscription(user_id):
     try:
         member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
@@ -63,7 +68,8 @@ def check_subscription(user_id):
         return False
 
 def download_youtube_video(url):
-    yt = YouTube(url, cookies=load_cookies())
+    set_cookies()  # Set cookies before creating YouTube object
+    yt = YouTube(url)
     stream = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc().first()
     file_path = stream.download()
     return file_path
@@ -125,7 +131,7 @@ def process_url(message):
 
 @app.route('/' + API_TOKEN, methods=['POST'])
 def webhook():
-    json_str = request.get_data().decode('UTF-8')
+    json_str = flask_request.get_data().decode('UTF-8')
     update = telebot.types.Update.de_json(json_str)
     bot.process_new_updates([update])
     return '!', 200
