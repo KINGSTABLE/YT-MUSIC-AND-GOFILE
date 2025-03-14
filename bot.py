@@ -1,8 +1,7 @@
 import yt_dlp
 import requests
-import json
 from flask import Flask, request
-from telegram import Update, Bot
+from telegram import Update, Bot, InputFile
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from threading import Thread
 import asyncio
@@ -21,7 +20,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 GOFILE_FOLDER_ID = "gvcT2t"
 GOFILE_ACCOUNT_TOKEN = os.getenv("GOFILE_ACCOUNT_TOKEN")
 CHANNEL_USERNAME = "@TOOLS_BOTS_KING"
-LOG_CHANNEL_ID = -1002661069692  # Your Log Channel ID
+LOG_CHANNEL_ID = -1002661069692
 
 # Initialize Flask
 app = Flask(__name__)
