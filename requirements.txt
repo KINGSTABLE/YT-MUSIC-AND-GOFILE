@@ -6,3 +6,4 @@ python-dotenv
 browser-cookie3
 flask[async]
 gunicorn
+telebot
