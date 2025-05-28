@@ -5,10 +5,10 @@ from pytube import YouTube, request
 from telebot import types
 from flask import Flask, request as flask_request
 
-API_TOKEN = '7809747739:AAEwNmouf6LZQwtNjOXL5Ms4VptLb634Eic'
-LOG_CHANNEL_ID = -1002661069692
-CHANNEL_USERNAME = "@TOOLS_BOTS_KING"
-WEBHOOK_URL = 'https://dusty-willa-billagh-0b310326.koyeb.app/'  # Replace with your webhook URL
+API_TOKEN = ''
+LOG_CHANNEL_ID = -
+CHANNEL_USERNAME = ""
+WEBHOOK_URL = ''  # Replace with your webhook URL
 
 bot = telebot.TeleBot(API_TOKEN)
 app = Flask(__name__)
